@@ -1,0 +1,67 @@
+import subprocess
+import re
+from manuf import manuf
+
+def get_device_info(mac):
+    try:
+        m = manuf.MacParser()
+        manufacturer = m.get_manuf(mac)
+        return manufacturer
+    except manuf.MacParserError:
+        return "Unknown"
+    
+def send_ping(ip):
+    subprocess.call(['ping.exe', '-n', '1', ip])
+
+
+def get_arp_table():
+    for i in range(1, 30):
+            ip = f'192.168.1.{i}'
+            send_ping(ip)
+
+    # Retrieve the ARP table
+    arp_output = subprocess.check_output(['arp', '-a'], universal_newlines=True)
+    arp_lines = arp_output.strip().split('\n')[1:]
+
+    arp_table = []
+    for line in arp_lines:
+        # Extract IP address, MAC address, and interface using regular expressions
+        match = re.match(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([\w\d-]+:[\w\d-]+:[\w\d-]+:[\w\d-]+:[\w\d-]+:[\w\d-]+)\s+(\w+)', line)
+        if match:
+            ip = match.group(1)
+            mac = match.group(2)
+            iface = match.group(3)
+            # Check if the IP address is within the desired range
+            if ip.startswith('192.168.1.') and int(ip.split('.')[-1]) <= 255:
+                manufacturer = get_device_info(mac)
+                arp_entry = {
+                    'IP Address': ip,
+                    'MAC Address': mac,
+                    'Interface': iface,
+                    'Manufacturer': manufacturer
+                }
+                arp_table.append(arp_entry)
+        else:
+            # Handle lines that do not match the expected format
+            values = line.split()
+            if len(values) >= 3:
+                ip = values[0]
+                mac = values[1]
+                iface = values[2]
+                # Check if the IP address is within the desired range
+                if ip.startswith('192.168.1.') and int(ip.split('.')[-1]) <= 255:
+                    manufacturer = get_device_info(mac)
+                    arp_entry = {
+                        'IP Address': ip,
+                        'MAC Address': mac,
+                        'Interface': iface,
+                        'Manufacturer': manufacturer
+                    }
+                    arp_table.append(arp_entry)
+
+    return arp_table
+
+# Usage example
+arp_table = get_arp_table()
+for entry in arp_table:
+    print(entry)
